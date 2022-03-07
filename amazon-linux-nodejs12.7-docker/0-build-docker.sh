@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-docker build --tag amazonlinux:nodejs12.7 .
+docker build --tag amazonlinux:nodejs14.19 .

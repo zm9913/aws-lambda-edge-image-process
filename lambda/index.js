@@ -4,8 +4,15 @@ const QueryParser = require('./util/QueryParser');
 const Md5 = require('./util/Md5');
 
 l = m => console.log(m);
+let formats = {
+    '@jpg': '@1080w_1920h_0e_1l_95q.jpg',
+    '@icon': '@512w_512h_0e_1l_95q.jpg',
+    '@thumb': '@800w_800h_0e_1l_95q.jpg',
+    '@mini': '@500w_500h_0e_1l_95q.jpg',
+    '@png': '@1080w_1920h_0e_1l_95q.png'
+}
 
-exports.handler = async function(event, context, callback) {
+exports.handler = async function (event, context, callback) {
     event = event['Records'][0];
     l('----------- HANDLER ------------');
     l(JSON.stringify(event));
@@ -17,6 +24,7 @@ exports.handler = async function(event, context, callback) {
     if (response['status'] && response['status'] < 400) {
         response['headers']['cache-control'] = [{'key': 'Cache-Control', 'value': 'max-age=86400'}]
     }
+    // l(`response: ${JSON.stringify(response)}`)
     callback(null, response);
 };
 
@@ -27,56 +35,50 @@ const getBucketNameFromCFRequest = (request) => {
     } catch (e) {
         return false;
     }
-    if (!domain.includes('.s3.amazonaws.com')) {
+    if (!domain.includes('.amazonaws.com')) {
         return false;
     }
     return domain.split('.')[0];
 };
 
+const parseRequestPolicy = (uri) => {
+    let format = uri.substring(uri.lastIndexOf('@'));
+    if (formats[format]) {
+        return QueryParser.parseUri(uri.replace(format, formats[format]));
+    }
+    return false;
+};
 
 const handleOriginResponse = async (request, response) => {
-    // Parse request params
-    let requestPolicy = QueryParser.parseUri(request['uri']);
-    // Fetch bucket name
-    let bucketName = getBucketNameFromCFRequest(request);
-
     if (response['status'] < 400 || response['status'] > 599) {
         return false;
     }
-
+    // Fetch bucket name
+    let bucketName = getBucketNameFromCFRequest(request);
     if (bucketName === false) {
         return false;
     }
     l(`bucket: ${bucketName}`)
 
-
+    // Parse request params
+    let requestPolicy = parseRequestPolicy(request['uri']);
     if (requestPolicy === false) {
         return false;
     }
-
     l(`requestPolicy: ${JSON.stringify(requestPolicy)}`)
 
     let rawObjectKey = requestPolicy.originImagePath;
-    while(rawObjectKey.charAt(0) === '/') { // Remove all / of left
+    while (rawObjectKey.charAt(0) === '/') { // Remove all / of left
         rawObjectKey = rawObjectKey.substr(1);
     }
     let saveObjKey = request['uri'];
-    while(saveObjKey.charAt(0) === '/') { // Remove all / of left
+    while (saveObjKey.charAt(0) === '/') { // Remove all / of left
         saveObjKey = saveObjKey.substr(1);
     }
 
     let contentType = getContentTypeByExt(requestPolicy.targetFormatExt);
 
     l('resize image start')
-
-    let size = {};
-    if (requestPolicy.filterMap['w']) {
-        size.width = requestPolicy.filterMap['w'];
-    }
-    if (requestPolicy.filterMap['h']) {
-        size.height = requestPolicy.filterMap['h'];
-    }
-
     let buffer = await resizeImage(bucketName, rawObjectKey, requestPolicy.targetFormatExt, requestPolicy.filterMap);
     l('resize image end')
     if (!buffer) {

@@ -59,9 +59,19 @@ const resize = (sharp, option, originImageMeta) => {
     }
 
     // Whether to process if the target thumbnail is larger than the original image.1: no processing; 0: will processing. Default 0
-    if (option.l === 1 && resizeOption.width && resizeOption.height) {
-        if (resizeOption.width * resizeOption.height > originImageMeta.height * originImageMeta.width) {
-            resizeOption = {};
+    if (option.l === 1) {
+        if (resizeOption.width && resizeOption.height) {
+            if (resizeOption.width * resizeOption.height > originImageMeta.height * originImageMeta.width) {
+                resizeOption = {};
+            }
+        } else if (resizeOption.width) {
+            if (resizeOption.width >= originImageMeta.width) {
+                resizeOption = {};
+            }
+        } else {
+            if (resizeOption.height >= originImageMeta.height) {
+                resizeOption = {};
+            }
         }
     }
 
@@ -70,9 +80,9 @@ const resize = (sharp, option, originImageMeta) => {
         if (resizeOption.width * resizeOption.height > 4096 * 4096) {
             resizeOption = {};
         }
-    } else if (resizeOption.width > 4096*4) {
+    } else if (resizeOption.width > 4096 * 4) {
         resizeOption = {};
-    } else if (resizeOption.height > 4096*4) {
+    } else if (resizeOption.height > 4096 * 4) {
         resizeOption = {};
     }
 
@@ -100,8 +110,18 @@ const adjustImage = async (imageBuffer, toFormat, option) => {
 
     // Resize
     let originImageMeta = await sharp.metadata(); // {width, height, format ...}
-    resize(sharp, option, originImageMeta);
+    // console.log(`originImageMeta: ${JSON.stringify(originImageMeta)}`)
+    // 如果原图尺寸小于目标值，直接返回
+    if (option.w >= originImageMeta.width || option.h >= originImageMeta.height) {
+        return imageBuffer
+    }
 
+    resize(sharp, option, originImageMeta);
+    // 如果图片比较大，降低图片质量
+    if ((option.w >= 1080 || option.h >= 1920) && originImageMeta.size > 1024 * 1024 * 5) {
+        option.q = 85
+    }
+    console.log(`last option: ${JSON.stringify(option)}`)
     // Output format & quality
     format(sharp, toFormat, option);
 
